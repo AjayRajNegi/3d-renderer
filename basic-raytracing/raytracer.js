@@ -33,7 +33,7 @@ const d = 1;
 const O = { x: 0, y: 0, z: 0 };
 
 // Background color (returned when no sphere is hit)
-const BACKGROUND_COLOR = { r: 0, g: 0, b: 0 };
+const BACKGROUND_COLOR = { r: 255, g: 255, b: 255 };
 
 // ==========================
 // SCENE DESCRIPTION
@@ -50,6 +50,27 @@ const scene = {
     { center: { x: 0, y: -1, z: 3 }, radius: 1, color: { r: 255, g: 0, b: 0 } }, // red sphere
     { center: { x: 2, y: 0, z: 4 }, radius: 1, color: { r: 0, g: 0, b: 255 } }, // blue sphere
     { center: { x: -2, y: 0, z: 4 }, radius: 1, color: { r: 0, g: 255, b: 0 } }, // green sphere
+    {
+      color: { r: 255, g: 255, b: 0 },
+      center: { x: 0, y: -5001, z: 0 },
+      radius: 5000,
+    }, // yellow sphere
+  ],
+  lights: [
+    {
+      type: "ambient",
+      intensity: 0.2,
+    },
+    {
+      type: "point",
+      intensity: 0.6,
+      position: { x: 2, y: 1, z: 0 },
+    },
+    {
+      type: "directional",
+      intensity: 0.2,
+      direction: { x: 1, y: 4, z: 4 },
+    },
   ],
 };
 
@@ -65,6 +86,21 @@ function dot(a, b) {
 // Subtraction between two 3D vectors: a - b
 function subtract(a, b) {
   return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
+}
+function add(a, b) {
+  return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
+}
+
+function multiply(v, scalar) {
+  return { x: v.x * scalar, y: v.y * scalar, z: v.z * scalar };
+}
+
+function divide(v, scalar) {
+  return { x: v.x / scalar, y: v.y / scalar, z: v.z / scalar };
+}
+
+function length(v) {
+  return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
 
 // ==========================
@@ -128,6 +164,35 @@ function IntersectRaySphere(O, D, sphere) {
 }
 
 // ==========================
+// COMPUTE LIGHTENING
+// ==========================
+//
+function ComputeLighting(P, N) {
+  let i = 0.0;
+
+  for (const light of scene.lights) {
+    if (light.type === "ambient") {
+      i += light.intensity;
+      continue;
+    }
+
+    let L;
+    if (light.type === "point") {
+      L = subtract(light.position, P);
+    } else {
+      L = light.direction;
+    }
+
+    const n_dot_l = dot(N, L);
+    if (n_dot_l > 0) {
+      i += light.intensity * (n_dot_l / (length(N) * length(L)));
+    }
+  }
+
+  return i;
+}
+
+// ==========================
 // TRACE A SINGLE RAY
 // ==========================
 //
@@ -160,8 +225,26 @@ function TraceRay(O, D, t_min, t_max) {
     }
   }
 
-  // No sphere hit → return background
-  return closest_sphere ? closest_sphere.color : BACKGROUND_COLOR;
+  if (!closest_sphere) {
+    return BACKGROUND_COLOR;
+  }
+
+  // Compute intersection point P
+  const P = add(O, multiply(D, closest_t));
+
+  // Compute normal N
+  let N = subtract(P, closest_sphere.center);
+  N = divide(N, length(N)); // normalize
+
+  // Compute lighting
+  const lighting = ComputeLighting(P, N);
+
+  // Apply lighting to sphere color
+  return {
+    r: closest_sphere.color.r * lighting,
+    g: closest_sphere.color.g * lighting,
+    b: closest_sphere.color.b * lighting,
+  };
 }
 
 // ==========================
