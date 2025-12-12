@@ -47,13 +47,29 @@ const BACKGROUND_COLOR = { r: 255, g: 255, b: 255 };
 
 const scene = {
   spheres: [
-    { center: { x: 0, y: -1, z: 3 }, radius: 1, color: { r: 255, g: 0, b: 0 } }, // red sphere
-    { center: { x: 2, y: 0, z: 4 }, radius: 1, color: { r: 0, g: 0, b: 255 } }, // blue sphere
-    { center: { x: -2, y: 0, z: 4 }, radius: 1, color: { r: 0, g: 255, b: 0 } }, // green sphere
+    {
+      center: { x: 0, y: -1, z: 3 },
+      radius: 1,
+      color: { r: 255, g: 0, b: 0 },
+      specular: 500,
+    }, // red sphere
+    {
+      center: { x: 2, y: 0, z: 4 },
+      radius: 1,
+      color: { r: 0, g: 0, b: 255 },
+      specular: 500,
+    }, // blue sphere
+    {
+      center: { x: -2, y: 0, z: 4 },
+      radius: 1,
+      color: { r: 0, g: 255, b: 0 },
+      specular: 10,
+    }, // green sphere
     {
       color: { r: 255, g: 255, b: 0 },
       center: { x: 0, y: -5001, z: 0 },
       radius: 5000,
+      specular: 1000,
     }, // yellow sphere
   ],
   lights: [
@@ -78,27 +94,21 @@ const scene = {
 // VECTOR MATH HELPERS
 // ==========================
 
-// Dot product between two 3D vectors
 function dot(a, b) {
   return a.x * b.x + a.y * b.y + a.z * b.z;
 }
-
-// Subtraction between two 3D vectors: a - b
 function subtract(a, b) {
   return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
 }
 function add(a, b) {
   return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
 }
-
 function multiply(v, scalar) {
   return { x: v.x * scalar, y: v.y * scalar, z: v.z * scalar };
 }
-
 function divide(v, scalar) {
   return { x: v.x / scalar, y: v.y / scalar, z: v.z / scalar };
 }
-
 function length(v) {
   return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
@@ -167,7 +177,7 @@ function IntersectRaySphere(O, D, sphere) {
 // COMPUTE LIGHTENING
 // ==========================
 //
-function ComputeLighting(P, N) {
+function ComputeLighting(P, N, V, s) {
   let i = 0.0;
 
   for (const light of scene.lights) {
@@ -183,9 +193,20 @@ function ComputeLighting(P, N) {
       L = light.direction;
     }
 
+    // Diffuse
     const n_dot_l = dot(N, L);
     if (n_dot_l > 0) {
       i += light.intensity * (n_dot_l / (length(N) * length(L)));
+    }
+
+    // Specular
+    if (s !== -1) {
+      const R = subtract(multiply(N, 2 * dot(N, L)), L);
+      const r_dot_v = dot(R, V);
+
+      if (r_dot_v > 0) {
+        i += light.intensity * Math.pow(r_dot_v / (length(R) * length(V)), s);
+      }
     }
   }
 
@@ -236,8 +257,10 @@ function TraceRay(O, D, t_min, t_max) {
   let N = subtract(P, closest_sphere.center);
   N = divide(N, length(N)); // normalize
 
+  const V = multiply(D, -1);
+
   // Compute lighting
-  const lighting = ComputeLighting(P, N);
+  const lighting = ComputeLighting(P, N, V, closest_sphere.specular);
 
   // Apply lighting to sphere color
   return {
