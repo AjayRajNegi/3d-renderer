@@ -1,329 +1,265 @@
-// ==========================
-// CANVAS SETUP
-// ==========================
+// ======================================================================
+//  Low-level canvas access.
+// ======================================================================
 
-// Get canvas reference from HTML
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
+let canvas = document.getElementById("canvas");
+let canvas_context = canvas.getContext("2d");
+let canvas_buffer = canvas_context.getImageData(
+  0,
+  0,
+  canvas.width,
+  canvas.height
+);
 
-// Retrieve a pixel buffer we can modify directly
-const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-// Canvas width & height (in pixels)
-const Cw = canvas.width;
-const Ch = canvas.height;
-
-// ==========================
-// VIEWPORT SETUP
-// ==========================
-//
-// The viewport is a "window" in 3D space through which the camera looks.
-// It is centered in front of the camera, at distance d.
-// Canvas pixels are mapped to this viewport.
-//
-
-// Viewport width & height (how wide the camera sees)
-const Vw = 1;
-const Vh = 1;
-
-// Distance from camera to viewport
-const d = 1;
-
-// Camera origin in 3D
-const O = { x: 0, y: 0, z: 0 };
-
-// Background color (returned when no sphere is hit)
-const BACKGROUND_COLOR = { r: 255, g: 255, b: 255 };
-
-// ==========================
-// SCENE DESCRIPTION
-// ==========================
-//
-// A simple list of spheres. Each sphere has:
-// - center: 3D position
-// - radius
-// - color: RGB
-//
-
-const scene = {
-  spheres: [
-    {
-      center: { x: 0, y: -1, z: 3 },
-      radius: 1,
-      color: { r: 255, g: 0, b: 0 },
-      specular: 500,
-    }, // red sphere
-    {
-      center: { x: 2, y: 0, z: 4 },
-      radius: 1,
-      color: { r: 0, g: 0, b: 255 },
-      specular: 500,
-    }, // blue sphere
-    {
-      center: { x: -2, y: 0, z: 4 },
-      radius: 1,
-      color: { r: 0, g: 255, b: 0 },
-      specular: 10,
-    }, // green sphere
-    {
-      color: { r: 255, g: 255, b: 0 },
-      center: { x: 0, y: -5001, z: 0 },
-      radius: 5000,
-      specular: 1000,
-    }, // yellow sphere
-  ],
-  lights: [
-    {
-      type: "ambient",
-      intensity: 0.2,
-    },
-    {
-      type: "point",
-      intensity: 0.6,
-      position: { x: 2, y: 1, z: 0 },
-    },
-    {
-      type: "directional",
-      intensity: 0.2,
-      direction: { x: 1, y: 4, z: 4 },
-    },
-  ],
-};
-
-// ==========================
-// VECTOR MATH HELPERS
-// ==========================
-
-function dot(a, b) {
-  return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-function subtract(a, b) {
-  return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
-}
-function add(a, b) {
-  return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
-}
-function multiply(v, scalar) {
-  return { x: v.x * scalar, y: v.y * scalar, z: v.z * scalar };
-}
-function divide(v, scalar) {
-  return { x: v.x / scalar, y: v.y / scalar, z: v.z / scalar };
-}
-function length(v) {
-  return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-}
-
-// ==========================
-// CANVAS → VIEWPORT PROJECTION
-// ==========================
-//
-// Converts a canvas pixel coordinate (x,y) into a direction vector D
-// pointing from the camera origin O through a point on the viewport.
-//
-
-function CanvasToViewport(x, y) {
-  // Scale pixel coordinates into viewport coordinates.
-  // Example: left edge of canvas maps to left edge of viewport.
+// A color.
+function Color(r, g, b) {
   return {
-    x: (x * Vw) / Cw, // horizontal scaling
-    y: (y * Vh) / Ch, // vertical scaling
-    z: d, // viewport is always "d" units in front of camera
+    r,
+    g,
+    b,
+    mul: function (n) {
+      return new Color(this.r * n, this.g * n, this.b * n);
+    },
+    add: function (color) {
+      return new Color(this.r + color.r, this.g + color.g, this.b + color.b);
+    },
   };
 }
 
-// ==========================
-// RAY-SPHERE INTERSECTION
-// ==========================
-//
-// Solves the quadratic equation for intersection between a ray:
-//
-//     P(t) = O + tD
-//
-// and a sphere:
-//
-//     |P - C| = r
-//
-// Returns two possible distances t1 and t2
-// (Infinity, Infinity) if no hit.
-//
+// The PutPixel() function.
+function PutPixel(x, y, color) {
+  x = canvas.width / 2 + x;
+  y = canvas.height / 2 - y - 1;
 
-function IntersectRaySphere(O, D, sphere) {
-  // Vector from sphere center to camera
-  const CO = subtract(O, sphere.center);
+  if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) {
+    return;
+  }
 
-  // Quadratic equation coefficients
-  const a = dot(D, D); // D·D
-  const b = 2 * dot(CO, D); // 2*(CO·D)
-  const c = dot(CO, CO) - sphere.radius * sphere.radius;
+  let offset = 4 * (x + canvas_buffer.width * y);
+  canvas_buffer.data[offset++] = color.r;
+  canvas_buffer.data[offset++] = color.g;
+  canvas_buffer.data[offset++] = color.b;
+  canvas_buffer.data[offset++] = 255; // Alpha = 255 (full opacity)
+}
 
-  // Discriminant determines whether we hit the sphere
-  const discriminant = b * b - 4 * a * c;
+// Displays the contents of the offscreen buffer into the canvas.
+function UpdateCanvas() {
+  canvas_context.putImageData(canvas_buffer, 0, 0);
+}
 
+function ClearAll() {
+  canvas.width = canvas.width;
+}
+
+// ======================================================================
+//  Linear algebra and helpers.
+// ======================================================================
+
+// Conceptually, an "infinitesimaly small" real number.
+let EPSILON = 0.001;
+
+function Vec(x, y, z) {
+  return {
+    x,
+    y,
+    z,
+    dot: function (vec) {
+      return this.x * vec.x + this.y * vec.y + this.z * vec.z;
+    },
+    add: function (vec) {
+      return new Vec(this.x + vec.x, this.y + vec.y, this.z + vec.z);
+    },
+    sub: function (vec) {
+      return new Vec(this.x - vec.x, this.y - vec.y, this.z - vec.z);
+    },
+    mul: function (n) {
+      return new Vec(this.x * n, this.y * n, this.z * n);
+    },
+    length: function () {
+      return Math.sqrt(this.dot(this));
+    },
+  };
+}
+
+// ======================================================================
+//  A raytracer with diffuse and specular illumination, and shadows.
+// ======================================================================
+
+// A Sphere.
+function Sphere(center, radius, color, specular) {
+  this.center = center;
+  this.radius = radius;
+  this.color = color;
+  this.specular = specular;
+}
+
+// A Light.
+function Light(ltype, intensity, position) {
+  return { ltype, intensity, position };
+}
+
+Light.AMBIENT = 0;
+Light.POINT = 1;
+Light.DIRECTIONAL = 2;
+
+// Scene setup.
+let viewport_size = 1;
+let projection_plane_z = 1;
+let camera_position = new Vec(0, 0, 0);
+let background_color = new Color(255, 255, 255);
+let spheres = [
+  new Sphere(new Vec(0, -1, 3), 1, new Color(255, 0, 0), 500),
+  new Sphere(new Vec(-2, 0, 4), 1, new Color(0, 255, 0), 10),
+  new Sphere(new Vec(2, 0, 4), 1, new Color(0, 0, 255), 500),
+  new Sphere(new Vec(0, -5001, 0), 5000, new Color(255, 255, 0), 1000),
+];
+
+let lights = [
+  new Light(Light.AMBIENT, 0.2),
+  new Light(Light.POINT, 0.6, new Vec(2, 1, 0)),
+  new Light(Light.DIRECTIONAL, 0.2, new Vec(1, 4, 4)),
+];
+
+// Converts 2D canvas coordinates to 3D viewport coordinates.
+function CanvasToViewport(x, y) {
+  return new Vec(
+    (x * viewport_size) / canvas.width,
+    (y * viewport_size) / canvas.height,
+    projection_plane_z
+  );
+}
+
+// Computes the intersection of a ray and a sphere. Returns the values
+// of t for the intersections.
+function IntersectRaySphere(origin, direction, sphere) {
+  let oc = origin.sub(sphere.center);
+
+  let k1 = direction.dot(direction);
+  let k2 = 2 * oc.dot(direction);
+  let k3 = oc.dot(oc) - sphere.radius * sphere.radius;
+
+  let discriminant = k2 * k2 - 4 * k1 * k3;
   if (discriminant < 0) {
-    // no real intersections → no hit
     return [Infinity, Infinity];
   }
 
-  const sqrtD = Math.sqrt(discriminant);
-
-  // Two possible intersection distances
-  const t1 = (-b + sqrtD) / (2 * a);
-  const t2 = (-b - sqrtD) / (2 * a);
-
+  let t1 = (-k2 + Math.sqrt(discriminant)) / (2 * k1);
+  let t2 = (-k2 - Math.sqrt(discriminant)) / (2 * k1);
   return [t1, t2];
 }
 
-// ==========================
-// COMPUTE LIGHTENING
-// ==========================
-//
-function ComputeLighting(P, N, V, s) {
-  let i = 0.0;
+function ComputeLighting(point, normal, view, specular) {
+  let intensity = 0;
+  let length_n = normal.length();
+  let length_v = view.length();
 
-  for (const light of scene.lights) {
-    if (light.type === "ambient") {
-      i += light.intensity;
+  for (let i = 0; i < lights.length; i++) {
+    let light = lights[i];
+    if (light.ltype == Light.AMBIENT) {
+      intensity += light.intensity;
       continue;
     }
 
-    let L;
-    if (light.type === "point") {
-      L = subtract(light.position, P);
+    let vec_l, t_max;
+    if (light.ltype == Light.POINT) {
+      vec_l = light.position.sub(point);
+      t_max = 1.0;
     } else {
-      L = light.direction;
+      // Light.DIRECTIONAL
+      vec_l = light.position;
+      t_max = Infinity;
     }
 
-    // Diffuse
-    const n_dot_l = dot(N, L);
+    // Shadow check.
+    let blocker = ClosestIntersection(point, vec_l, EPSILON, t_max);
+    if (blocker) {
+      continue;
+    }
+
+    // Diffuse reflection.
+    let n_dot_l = normal.dot(vec_l);
     if (n_dot_l > 0) {
-      i += light.intensity * (n_dot_l / (length(N) * length(L)));
+      intensity += (light.intensity * n_dot_l) / (length_n * vec_l.length());
     }
 
-    // Specular
-    if (s !== -1) {
-      const R = subtract(multiply(N, 2 * dot(N, L)), L);
-      const r_dot_v = dot(R, V);
-
+    // Specular reflection.
+    if (specular != -1) {
+      let vec_r = normal.mul(2.0 * n_dot_l).sub(vec_l);
+      let r_dot_v = vec_r.dot(view);
       if (r_dot_v > 0) {
-        i += light.intensity * Math.pow(r_dot_v / (length(R) * length(V)), s);
+        intensity +=
+          light.intensity *
+          Math.pow(r_dot_v / (vec_r.length() * length_v), specular);
       }
     }
   }
 
-  return i;
+  return intensity;
 }
 
-// ==========================
-// TRACE A SINGLE RAY
-// ==========================
-//
-// For a ray defined by origin O and direction D:
-//
-// - Check intersection with every sphere
-// - Keep the closest intersection within [t_min, t_max]
-// - Return the sphere's color if hit
-// - Otherwise return BACKGROUND_COLOR
-//
+// Find the closest intersection between a ray and the spheres in the scene.
+function ClosestIntersection(origin, direction, min_t, max_t) {
+  let closest_t = Infinity;
+  let closest_sphere = null;
 
-function TraceRay(O, D, t_min, t_max) {
-  let closest_t = Infinity; // track nearest hit
-  let closest_sphere = null; // track sphere that was hit
-
-  // test ray against each sphere
-  for (const sphere of scene.spheres) {
-    const [t1, t2] = IntersectRaySphere(O, D, sphere);
-
-    // check if first hit is valid & closest
-    if (t1 >= t_min && t1 <= t_max && t1 < closest_t) {
-      closest_t = t1;
-      closest_sphere = sphere;
+  for (let i = 0; i < spheres.length; i++) {
+    let ts = IntersectRaySphere(origin, direction, spheres[i]);
+    if (ts[0] < closest_t && min_t < ts[0] && ts[0] < max_t) {
+      closest_t = ts[0];
+      closest_sphere = spheres[i];
     }
-
-    // check second hit
-    if (t2 >= t_min && t2 <= t_max && t2 < closest_t) {
-      closest_t = t2;
-      closest_sphere = sphere;
+    if (ts[1] < closest_t && min_t < ts[1] && ts[1] < max_t) {
+      closest_t = ts[1];
+      closest_sphere = spheres[i];
     }
   }
 
-  if (!closest_sphere) {
-    return BACKGROUND_COLOR;
+  if (closest_sphere) {
+    return [closest_sphere, closest_t];
+  }
+  return null;
+}
+
+// Traces a ray against the set of spheres in the scene.
+function TraceRay(origin, direction, min_t, max_t) {
+  let intersection = ClosestIntersection(origin, direction, min_t, max_t);
+  if (!intersection) {
+    return background_color;
   }
 
-  // Compute intersection point P
-  const P = add(O, multiply(D, closest_t));
+  let closest_sphere = intersection[0];
+  let closest_t = intersection[1];
 
-  // Compute normal N
-  let N = subtract(P, closest_sphere.center);
-  N = divide(N, length(N)); // normalize
+  let point = origin.add(direction.mul(closest_t));
+  let normal = point.sub(closest_sphere.center);
+  normal = normal.mul(1.0 / normal.length());
 
-  const V = multiply(D, -1);
-
-  // Compute lighting
-  const lighting = ComputeLighting(P, N, V, closest_sphere.specular);
-
-  // Apply lighting to sphere color
-  return {
-    r: closest_sphere.color.r * lighting,
-    g: closest_sphere.color.g * lighting,
-    b: closest_sphere.color.b * lighting,
-  };
+  let view = direction.mul(-1);
+  let lighting = ComputeLighting(point, normal, view, closest_sphere.specular);
+  return closest_sphere.color.mul(lighting);
 }
 
-// ==========================
-// PUT PIXEL INTO CANVAS
-// ==========================
-//
-// Convert x,y from "centered coordinates" (−Cw/2 .. +Cw/2)
-// into canvas pixel coordinates (0..Cw, 0..Ch)
-//
-
-function PutPixel(x, y, color) {
-  // Convert centered coordinates to canvas coordinates
-  const px = Cw / 2 + x;
-  const py = Ch / 2 - y; // y-axis is inverted in canvas
-
-  // Stay inside the canvas
-  if (px < 0 || px >= Cw || py < 0 || py >= Ch) return;
-
-  // Compute index inside pixel buffer
-  const index = (px + py * Cw) * 4;
-
-  imgData.data[index + 0] = color.r; // red
-  imgData.data[index + 1] = color.g; // green
-  imgData.data[index + 2] = color.b; // blue
-  imgData.data[index + 3] = 255; // alpha (fully opaque)
+function SetShadowEpsilon(epsilon) {
+  EPSILON = epsilon;
+  Render();
 }
 
-// ==========================
-// MAIN RENDER LOOP
-// ==========================
-//
-// Loops over every pixel in the canvas,
-// sends a ray through that pixel,
-// and paints the result.
-//
+function Render() {
+  ClearAll();
 
-function render() {
-  // x and y loop over centered coordinates:
-  // e.g. with 800x800 canvas:
-  // x goes from -400 .. +399
-  for (let x = -Cw / 2; x < Cw / 2; x++) {
-    for (let y = -Ch / 2; y < Ch / 2; y++) {
-      // Get direction vector for ray through this pixel
-      const D = CanvasToViewport(x, y);
-
-      // Shoot ray from camera through pixel
-      const color = TraceRay(O, D, 1, Infinity);
-
-      // Paint pixel on canvas
-      PutPixel(x, y, color);
+  // This lets the browser clear the canvas before blocking to render the scene.
+  setTimeout(function () {
+    // Main loop.
+    for (let x = -canvas.width / 2; x < canvas.width / 2; x++) {
+      for (let y = -canvas.height / 2; y < canvas.height / 2; y++) {
+        let direction = CanvasToViewport(x, y);
+        let color = TraceRay(camera_position, direction, 1, Infinity);
+        PutPixel(x, y, color);
+      }
     }
-  }
 
-  // Copy image buffer to canvas
-  ctx.putImageData(imgData, 0, 0);
+    UpdateCanvas();
+  }, 0);
 }
 
-// Do the render!
-render();
+Render();

@@ -6,7 +6,29 @@
     <title>3D Renderer</title>
   </head>
   <body>
-    <canvas id="canvas" width="800" height="800"></canvas>
+    <div class="centered">
+      <canvas id="canvas" width="800" height="800"></canvas>
+      <table class="cgfs-demo-controls">
+        <tr>
+          <td><b>Shadow ray start</b></td>
+          <td class="text-left">
+            <input
+              type="radio"
+              id="eps-0"
+              name="shadow-ray-start"
+              onClick="SetShadowEpsilon(0);"
+            /><label for="eps-0">Zero</label><br />
+            <input
+              type="radio"
+              id="eps-e"
+              name="shadow-ray-start"
+              onClick="SetShadowEpsilon(0.001);"
+              checked
+            /><label for="eps-e">Epsilon</label>
+          </td>
+        </tr>
+      </table>
+    </div>
     <script src="raytracer.js"></script>
   </body>
 </html>
