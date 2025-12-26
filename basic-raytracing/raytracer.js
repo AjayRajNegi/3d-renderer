@@ -56,7 +56,7 @@ function ClearAll() {
 // ======================================================================
 
 // Conceptually, an "infinitesimaly small" real number.
-let EPSILON = 0.001;
+const EPSILON = 0.001;
 
 function Vec(x, y, z) {
   return {
@@ -81,16 +81,22 @@ function Vec(x, y, z) {
   };
 }
 
+// Computes the reflection of v1 respect to v2.
+function ReflectRay(v1, v2) {
+  return v2.mul(2 * v1.dot(v2)).sub(v1);
+}
+
 // ======================================================================
-//  A raytracer with diffuse and specular illumination, and shadows.
+//  A raytracer with diffuse and specular illumination, shadows and reflections.
 // ======================================================================
 
 // A Sphere.
-function Sphere(center, radius, color, specular) {
+function Sphere(center, radius, color, specular, reflective) {
   this.center = center;
   this.radius = radius;
   this.color = color;
   this.specular = specular;
+  this.reflective = reflective;
 }
 
 // A Light.
@@ -106,12 +112,12 @@ Light.DIRECTIONAL = 2;
 let viewport_size = 1;
 let projection_plane_z = 1;
 let camera_position = new Vec(0, 0, 0);
-let background_color = new Color(255, 255, 255);
+let background_color = new Color(0, 0, 0);
 let spheres = [
-  new Sphere(new Vec(0, -1, 3), 1, new Color(255, 0, 0), 500),
-  new Sphere(new Vec(-2, 0, 4), 1, new Color(0, 255, 0), 10),
-  new Sphere(new Vec(2, 0, 4), 1, new Color(0, 0, 255), 500),
-  new Sphere(new Vec(0, -5001, 0), 5000, new Color(255, 255, 0), 1000),
+  new Sphere(new Vec(0, -1, 3), 1, new Color(255, 0, 0), 500, 0.2),
+  new Sphere(new Vec(-2, 0, 4), 1, new Color(0, 255, 0), 10, 0.4),
+  new Sphere(new Vec(2, 0, 4), 1, new Color(0, 0, 255), 500, 0.3),
+  new Sphere(new Vec(0, -5001, 0), 5000, new Color(255, 255, 0), 1000, 0.5),
 ];
 
 let lights = [
@@ -119,6 +125,24 @@ let lights = [
   new Light(Light.POINT, 0.6, new Vec(2, 1, 0)),
   new Light(Light.DIRECTIONAL, 0.2, new Vec(1, 4, 4)),
 ];
+
+let recursion_depth = 3;
+
+function updateRecursionLimit() {
+  let v = document.getElementById("rec-limit").value | 0;
+  if (v < 0) {
+    v = 0;
+  }
+  if (v > 5) {
+    v = 5;
+  }
+  document.getElementById("rec-limit").value = v;
+
+  if (recursion_depth != v) {
+    recursion_depth = v;
+    Render();
+  }
+}
 
 // Converts 2D canvas coordinates to 3D viewport coordinates.
 function CanvasToViewport(x, y) {
@@ -150,7 +174,7 @@ function IntersectRaySphere(origin, direction, sphere) {
 
 function ComputeLighting(point, normal, view, specular) {
   let intensity = 0;
-  let length_n = normal.length();
+  let length_n = normal.length(); // Should be 1.0, but just in case...
   let length_v = view.length();
 
   for (let i = 0; i < lights.length; i++) {
@@ -221,7 +245,7 @@ function ClosestIntersection(origin, direction, min_t, max_t) {
 }
 
 // Traces a ray against the set of spheres in the scene.
-function TraceRay(origin, direction, min_t, max_t) {
+function TraceRay(origin, direction, min_t, max_t, depth) {
   let intersection = ClosestIntersection(origin, direction, min_t, max_t);
   if (!intersection) {
     return background_color;
@@ -236,12 +260,24 @@ function TraceRay(origin, direction, min_t, max_t) {
 
   let view = direction.mul(-1);
   let lighting = ComputeLighting(point, normal, view, closest_sphere.specular);
-  return closest_sphere.color.mul(lighting);
-}
+  let local_color = closest_sphere.color.mul(lighting);
 
-function SetShadowEpsilon(epsilon) {
-  EPSILON = epsilon;
-  Render();
+  if (closest_sphere.reflective <= 0 || depth <= 0) {
+    return local_color;
+  }
+
+  let reflected_ray = ReflectRay(view, normal);
+  let reflected_color = TraceRay(
+    point,
+    reflected_ray,
+    EPSILON,
+    Infinity,
+    depth - 1
+  );
+
+  let local_contribution = local_color.mul(1 - closest_sphere.reflective);
+  let reflected_contribution = reflected_color.mul(closest_sphere.reflective);
+  return local_contribution.add(reflected_contribution);
 }
 
 function Render() {
@@ -253,7 +289,13 @@ function Render() {
     for (let x = -canvas.width / 2; x < canvas.width / 2; x++) {
       for (let y = -canvas.height / 2; y < canvas.height / 2; y++) {
         let direction = CanvasToViewport(x, y);
-        let color = TraceRay(camera_position, direction, 1, Infinity);
+        let color = TraceRay(
+          camera_position,
+          direction,
+          1,
+          Infinity,
+          recursion_depth
+        );
         PutPixel(x, y, color);
       }
     }

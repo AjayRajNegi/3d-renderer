@@ -7,24 +7,26 @@
   </head>
   <body>
     <div class="centered">
-      <canvas id="canvas" width="800" height="800"></canvas>
+      <canvas
+        id="canvas"
+        width="600"
+        height="600"
+        style="border: 1px grey solid"
+      ></canvas>
+
       <table class="cgfs-demo-controls">
         <tr>
-          <td><b>Shadow ray start</b></td>
+          <td><b>Recursion limit</b></td>
           <td class="text-left">
             <input
-              type="radio"
-              id="eps-0"
-              name="shadow-ray-start"
-              onClick="SetShadowEpsilon(0);"
-            /><label for="eps-0">Zero</label><br />
-            <input
-              type="radio"
-              id="eps-e"
-              name="shadow-ray-start"
-              onClick="SetShadowEpsilon(0.001);"
-              checked
-            /><label for="eps-e">Epsilon</label>
+              type="number"
+              id="rec-limit"
+              onchange="updateRecursionLimit();"
+              min="0"
+              max="5"
+              witdh="3"
+              value="3"
+            />
           </td>
         </tr>
       </table>
