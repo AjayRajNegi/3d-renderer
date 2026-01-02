@@ -47,10 +47,6 @@ function UpdateCanvas() {
   canvas_context.putImageData(canvas_buffer, 0, 0);
 }
 
-function ClearAll() {
-  canvas.width = canvas.width;
-}
-
 // ======================================================================
 //  Linear algebra and helpers.
 // ======================================================================
@@ -86,8 +82,23 @@ function ReflectRay(v1, v2) {
   return v2.mul(2 * v1.dot(v2)).sub(v1);
 }
 
+// Multiplies a matrix and a vector.
+function MultiplyMV(mat, vec) {
+  let result = [0, 0, 0];
+  vec = [vec.x, vec.y, vec.z];
+
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      result[i] += vec[j] * mat[i][j];
+    }
+  }
+
+  return new Vec(result[0], result[1], result[2]);
+}
+
 // ======================================================================
-//  A raytracer with diffuse and specular illumination, shadows and reflections.
+//  A raytracer with diffuse and specular illumination, shadows and reflections,
+// arbitrary camera position and orientation.
 // ======================================================================
 
 // A Sphere.
@@ -111,7 +122,12 @@ Light.DIRECTIONAL = 2;
 // Scene setup.
 let viewport_size = 1;
 let projection_plane_z = 1;
-let camera_position = new Vec(0, 0, 0);
+let camera_position = new Vec(3, 0, 1);
+let camera_rotation = [
+  [0.7071, 0, -0.7071],
+  [0, 1, 0],
+  [0.7071, 0, 0.7071],
+];
 let background_color = new Color(0, 0, 0);
 let spheres = [
   new Sphere(new Vec(0, -1, 3), 1, new Color(255, 0, 0), 500, 0.2),
@@ -127,22 +143,6 @@ let lights = [
 ];
 
 let recursion_depth = 3;
-
-function updateRecursionLimit() {
-  let v = document.getElementById("rec-limit").value | 0;
-  if (v < 0) {
-    v = 0;
-  }
-  if (v > 5) {
-    v = 5;
-  }
-  document.getElementById("rec-limit").value = v;
-
-  if (recursion_depth != v) {
-    recursion_depth = v;
-    Render();
-  }
-}
 
 // Converts 2D canvas coordinates to 3D viewport coordinates.
 function CanvasToViewport(x, y) {
@@ -280,28 +280,22 @@ function TraceRay(origin, direction, min_t, max_t, depth) {
   return local_contribution.add(reflected_contribution);
 }
 
-function Render() {
-  ClearAll();
-
-  // This lets the browser clear the canvas before blocking to render the scene.
-  setTimeout(function () {
-    // Main loop.
-    for (let x = -canvas.width / 2; x < canvas.width / 2; x++) {
-      for (let y = -canvas.height / 2; y < canvas.height / 2; y++) {
-        let direction = CanvasToViewport(x, y);
-        let color = TraceRay(
-          camera_position,
-          direction,
-          1,
-          Infinity,
-          recursion_depth
-        );
-        PutPixel(x, y, color);
-      }
-    }
-
-    UpdateCanvas();
-  }, 0);
+//
+// Main loop.
+//
+for (let x = -canvas.width / 2; x < canvas.width / 2; x++) {
+  for (let y = -canvas.height / 2; y < canvas.height / 2; y++) {
+    let direction = CanvasToViewport(x, y);
+    direction = MultiplyMV(camera_rotation, direction);
+    let color = TraceRay(
+      camera_position,
+      direction,
+      1,
+      Infinity,
+      recursion_depth
+    );
+    PutPixel(x, y, color);
+  }
 }
 
-Render();
+UpdateCanvas();
